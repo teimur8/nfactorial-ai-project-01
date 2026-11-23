@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from dotenv import load_dotenv
-from openai import APIConnectionError, APIStatusError, OpenAI
+from openai import APIConnectionError, APIStatusError, LengthFinishReasonError, OpenAI
 from pydantic import BaseModel, Field, ValidationError
 
 load_dotenv()
@@ -177,6 +177,9 @@ def pick(client: Any, model: str, query: str, films: list[dict]) -> tuple[str, l
         outcome = f"error_{e.status_code}"
         log_call(model=model, request_data=filter_request, outcome=outcome, step="filters")
         return outcome, []
+    except LengthFinishReasonError:
+        log_call(model=model, request_data=filter_request, outcome="length", step="filters")
+        return "length", []
     except Exception:
         # If filter extraction fails or is unsupported by mock, proceed with empty filters
         pass
@@ -228,6 +231,9 @@ def pick(client: Any, model: str, query: str, films: list[dict]) -> tuple[str, l
         outcome = f"error_{e.status_code}"
         log_call(model=model, request_data=choice_request, outcome=outcome, step="choice")
         return outcome, []
+    except LengthFinishReasonError:
+        log_call(model=model, request_data=choice_request, outcome="length", step="choice")
+        return "length", []
     except (ValidationError, Exception) as e:
         # Check if it was API exception or schema failure
         if isinstance(e, APIConnectionError):
@@ -237,6 +243,9 @@ def pick(client: Any, model: str, query: str, films: list[dict]) -> tuple[str, l
             outcome = f"error_{e.status_code}"
             log_call(model=model, request_data=choice_request, outcome=outcome, step="choice")
             return outcome, []
+        if isinstance(e, LengthFinishReasonError):
+            log_call(model=model, request_data=choice_request, outcome="length", step="choice")
+            return "length", []
         log_call(model=model, request_data=choice_request, outcome="invalid", rejected=[], step="choice")
         return "invalid", []
 
