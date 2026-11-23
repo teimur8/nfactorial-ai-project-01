@@ -18,7 +18,12 @@ JOURNAL_PATH = Path("calls.jsonl")
 
 
 class Filters(BaseModel):
-    """Structured constraints extracted from a user query."""
+    """Structured constraints extracted from a user query (Rare tier R02).
+
+    Why: Extracting explicit numerical/categorical filters allows deterministic
+    pre-filtering of the catalog in Python code before calling the choice LLM,
+    guaranteeing strict adherence to negative/positive constraints (R03/R04).
+    """
 
     max_minutes: int | None = Field(default=None, description="Maximum duration in minutes")
     year_from: int | None = Field(default=None, description="Minimum release year")
@@ -36,7 +41,11 @@ class PickItem(BaseModel):
 
 
 class MovieSelection(BaseModel):
-    """Structured response schema for movie choice."""
+    """Structured response schema for movie choice.
+
+    Why: Pydantic structured outputs guarantee type safety and enforce strict
+    tri-state outcomes ('ok', 'no_match', 'clarify') mandated by OF-01 and L02.
+    """
 
     status: Literal["ok", "no_match", "clarify"] = Field(
         description="Recommendation status: ok, no_match if none fit, or clarify if query is ambiguous"
@@ -97,7 +106,12 @@ def log_call(
 
 
 def apply_filters(films: list[dict], filters: Filters) -> list[dict]:
-    """Filter catalog using extracted structured filters."""
+    """Filter catalog using extracted structured filters.
+
+    Why: Deterministic Python filtering guarantees that hard user constraints
+    (duration limits, release year ranges, excluded genres) cannot be bypassed
+    by probabilistic LLM reasoning.
+    """
     result = []
     for film in films:
         minutes = film.get("minutes")
@@ -152,7 +166,12 @@ INJECTION_PATTERNS = [
 
 
 def is_prompt_injection(query: str) -> bool:
-    """Detect prompt injection, role hijacking, code requests, or off-topic abuse."""
+    """Detect prompt injection, role hijacking, code requests, or off-topic abuse.
+
+    Why: Zero-trust security principle. We reject hostile instructions (system prompt leaks,
+    jailbreaks, python script requests) deterministically before making an LLM API call,
+    saving latency, tokens, and preventing prompt exploitation.
+    """
     q = query.strip()
     return any(re.search(pat, q, re.IGNORECASE) for pat in INJECTION_PATTERNS)
 
@@ -174,12 +193,14 @@ def pick(client: Any, model: str, query: str, films: list[dict]) -> tuple[str, l
     known_ids = set(by_id.keys())
 
     # Step 0: Deterministic prompt injection and jailbreak interception
+    # Why: Block hostile payloads immediately without spending API tokens or risking model misalignment.
     if is_prompt_injection(query):
         choice_request = f"{query} [catalog size: {len(films)}]"
         log_call(model=model, request_data=choice_request, outcome="no_match", step="choice")
         return "no_match", []
 
     # Step 1: Extract structured filters (Rare R02 requirement)
+    # Why: Isolates hard categorical constraints (years, genres, duration) into a verifiable schema.
     filters_step = Filters()
     filter_prompt = (
         "Извлеки числовые и категорические фильтры из запроса пользователя. "
@@ -217,6 +238,7 @@ def pick(client: Any, model: str, query: str, films: list[dict]) -> tuple[str, l
         pass
 
     # Step 2: Deterministic catalog pre-filtering before LLM choice
+    # Why: Reduces catalog size sent to the model, eliminating films that violate explicit user constraints (R04).
     working_catalog = apply_filters(films, filters_step)
     if not working_catalog:
         choice_request = f"{query} [catalog size: 0]"
@@ -306,12 +328,15 @@ def pick(client: Any, model: str, query: str, films: list[dict]) -> tuple[str, l
         return "no_match", []
 
     # Guardrails validation
+    # Why: Invariant 1 - Never trust LLM output. Validate all IDs, enforce bounds,
+    # and guarantee that no hallucinations or duplicates reach the user.
     picks = parsed.picks
     if not picks:
         log_call(model=model, request_data=choice_request, outcome="no_match", usage=completion.usage, step="choice")
         return "no_match", []
 
-    # Check for foreign/alien IDs against the PASSED catalog
+    # Check for foreign/alien IDs against the PASSED catalog (S10 requirement)
+    # Why: Prevents hallucinated or out-of-catalog film recommendations.
     raw_ids = [p.film_id for p in picks]
     alien_ids = [fid for fid in raw_ids if str(fid) not in known_ids]
     if alien_ids:
@@ -325,7 +350,8 @@ def pick(client: Any, model: str, query: str, films: list[dict]) -> tuple[str, l
         )
         return "invalid", []
 
-    # Check for duplicate IDs
+    # Check for duplicate IDs (S11 requirement)
+    # Why: Disallows recommending the same movie multiple times in one response.
     str_ids = [str(fid) for fid in raw_ids]
     if len(str_ids) != len(set(str_ids)):
         log_call(
@@ -343,6 +369,7 @@ def pick(client: Any, model: str, query: str, films: list[dict]) -> tuple[str, l
         picks = picks[:3]
 
     # Post-validation against extracted filters (R03 requirement)
+    # Why: Redundant safety net ensuring no film that slipped through LLM choice violates hard constraints.
     valid_picks = []
     for p in picks:
         film = by_id[str(p.film_id)]

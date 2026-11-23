@@ -29,7 +29,12 @@ logger = logging.getLogger(__name__)
 
 
 class ChatSession:
-    """Manages conversational state and exclusions for a single chat user."""
+    """Manages conversational state and exclusions for a single chat user.
+
+    Why: Invariant BOT-02 and BOT-03 require session-persistent deduplication.
+    `seen_ids` holds all film IDs recommended or explicitly excluded by the user
+    ('уже смотрел X') so that subsequent turns never recommend duplicates.
+    """
 
     def __init__(self) -> None:
         self.seen_ids: set[str] = set()
@@ -83,6 +88,12 @@ def is_more_command(text: str) -> bool:
         return True
     words = re.findall(r"\w+", cleaned)
     return any(w in {"еще", "ещё", "more"} for w in words)
+
+
+def is_reset_command(text: str) -> bool:
+    """Detect if user is asking to reset conversation history."""
+    cleaned = text.strip().lower()
+    return any(tok in cleaned for tok in {"/reset", "сброс", "reset"})
 
 
 def is_ambiguous_query(text: str) -> bool:
@@ -222,7 +233,7 @@ def handle_user_message(
             "• Команда /reset сбрасывает историю просмотров"
         )
 
-    if stripped.lower() in {"/reset", "сброс"}:
+    if is_reset_command(stripped):
         session.reset()
         return "🔄 История текущего диалога сброшена. Что хотите посмотреть?"
 
