@@ -105,6 +105,17 @@ def log_call(
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
+LANGUAGE_NORMALIZATION: dict[str, str] = {
+    "kazakh": "казахский",
+    "казах": "казахский",
+    "казахском": "казахский",
+    "казахский": "казахский",
+    "russian": "русский",
+    "русском": "русский",
+    "русский": "русский",
+}
+
+
 def apply_filters(films: list[dict], filters: Filters) -> list[dict]:
     """Filter catalog using extracted structured filters.
 
@@ -137,7 +148,10 @@ def apply_filters(films: list[dict], filters: Filters) -> list[dict]:
 
         languages = [str(l).lower() for l in (film.get("languages") or [])]
         if filters.languages:
-            req_langs = [str(l).lower() for l in filters.languages]
+            req_langs = [
+                LANGUAGE_NORMALIZATION.get(str(l).strip().lower(), str(l).strip().lower())
+                for l in filters.languages
+            ]
             if not any(l in languages for l in req_langs):
                 continue
 
@@ -204,7 +218,8 @@ def pick(client: Any, model: str, query: str, films: list[dict]) -> tuple[str, l
     filters_step = Filters()
     filter_prompt = (
         "Извлеки числовые и категорические фильтры из запроса пользователя. "
-        "Если фильтр не указан, оставь null.\n"
+        "Если фильтр не указан, оставь null. "
+        "Языки указывай на русском языке строго из каталога: 'казахский' или 'русский'.\n"
         f"<запрос>{query}</запрос>"
     )
     filter_request = f"filters: {query} [catalog size: {len(films)}]"
