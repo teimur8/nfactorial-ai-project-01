@@ -12,11 +12,8 @@ journal_path = Path("calls.jsonl")
 records = []
 
 
-def make_record(model, query, outcome, step="choice", catalog_size=50, prompt_tokens=1200, completion_tokens=80, rejected=None, full_catalog_str=None):
-    if full_catalog_str:
-        req = f"{query} [full catalog: {full_catalog_str}]"
-    else:
-        req = f"{query} [catalog size: {catalog_size}]"
+def make_record(model, query, outcome, step="choice", catalog_size=50, prompt_tokens=1200, completion_tokens=80, rejected=None):
+    req = f"{query} [catalog size: {catalog_size}]"
 
     cost = 0.0
     if "4o-mini" in model:
@@ -83,7 +80,6 @@ records.append(make_record(
     catalog_size=len(films_big),
     prompt_tokens=len(big_catalog_json) // 3,
     completion_tokens=95,
-    full_catalog_str=big_catalog_json,
 ))
 
 with journal_path.open("w", encoding="utf-8") as f:
