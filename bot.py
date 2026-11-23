@@ -17,6 +17,7 @@ from typing import Any
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
+from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -48,12 +49,25 @@ class ChatSession:
         self.last_query = None
 
 
+def get_main_keyboard() -> ReplyKeyboardMarkup:
+    """Return persistent reply keyboard with quick action buttons."""
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🔄 Ещё")],
+            [KeyboardButton(text="❓ Что посмотреть?"), KeyboardButton(text="🔄 Сброс (/reset)")],
+        ],
+        resize_keyboard=True,
+    )
+
+
 def is_more_command(text: str) -> bool:
     """Detect if user is asking for more recommendations."""
     cleaned = text.strip().lower()
-    return cleaned in {
+    more_tokens = {
         "еще",
         "ещё",
+        "🔄 ещё",
+        "🔄 еще",
         "еще фильмы",
         "ещё фильмы",
         "еще раз",
@@ -64,6 +78,62 @@ def is_more_command(text: str) -> bool:
         "давай еще",
         "давай ещё",
     }
+    if cleaned in more_tokens:
+        return True
+    words = re.findall(r"\w+", cleaned)
+    return any(w in {"еще", "ещё", "more"} for w in words)
+
+
+def is_ambiguous_query(text: str) -> bool:
+    """Detect broad or ambiguous queries that require clarification (BOT-01)."""
+    norm_text = re.sub(r"[-_]", " ", text.strip().lower())
+    words = re.findall(r"\w+", norm_text)
+    if not words:
+        return True
+
+    phrase = " ".join(words)
+    ambiguous_phrases = {
+        "что посмотреть",
+        "посоветуй фильм",
+        "посоветуй кино",
+        "посоветуй что нибудь",
+        "посоветуй чтонибудь",
+        "посоветуй",
+        "хочу фильм",
+        "хочу кино",
+        "кино",
+        "фильм",
+        "фильмы",
+        "что глянуть",
+        "порекомендуй фильм",
+        "порекомендуй кино",
+        "порекомендуй",
+        "что нибудь",
+        "чтонибудь",
+        "что нибудь интересное",
+        "чтонибудь интересное",
+        "хороший фильм",
+        "классный фильм",
+        "кино на вечер",
+        "фильм на вечер",
+        "дай фильм",
+        "дай кино",
+        "любой фильм",
+        "что посоветуешь",
+        "подскажи фильм",
+        "подскажи кино",
+    }
+    if phrase in ambiguous_phrases:
+        return True
+
+    generic_words = {"фильм", "кино", "посмотреть", "глянуть", "посоветуй", "порекомендуй", "хочу"}
+    if len(words) == 1 and words[0] in generic_words:
+        return True
+
+    if len(words) == 2 and all(w in generic_words or w in {"на", "вечер", "хороший", "любой"} for w in words):
+        return True
+
+    return False
 
 
 def parse_exclusion(text: str, films: list[dict]) -> tuple[list[dict] | None, str | None]:
@@ -162,10 +232,22 @@ def handle_user_message(
         session.add_seen([f.get("id") for f in matched_films])
         return exclusion_msg
 
+    # Check for ambiguous/generic queries (BOT-01)
+    if is_ambiguous_query(stripped):
+        return (
+            "❓ Запрос слишком широкий. Уточните, пожалуйста: "
+            "какой жанр, эпоху, настроение или страну вы предпочитаете?\n"
+            "_(Например: «корейский детектив», «советская комедия» или «фантастика про космос»)_"
+        )
+
     # Determine query string (BOT-02)
     if is_more_command(stripped):
         if not session.last_query:
-            return "Вы еще не запрашивали фильмы. Напишите, какой фильм вы ищете!"
+            return (
+                "💡 Вы ещё не искали фильмы в этом диалоге. Напишите, что вы хотите посмотреть "
+                "(например: _«комедия на вечер»_ или _«фильм как Интерстеллар»_), "
+                "а затем кнопка **«🔄 Ещё»** покажет другие варианты!"
+            )
         query = session.last_query
     else:
         query = stripped
@@ -239,13 +321,13 @@ async def run_bot() -> None:
     async def cmd_start(message: types.Message) -> None:
         session = get_session(message.chat.id)
         reply = handle_user_message(session, "/start", films, client, model_name)
-        await message.answer(reply, parse_mode="Markdown")
+        await message.answer(reply, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
     @dp.message(Command("reset"))
     async def cmd_reset(message: types.Message) -> None:
         session = get_session(message.chat.id)
         reply = handle_user_message(session, "/reset", films, client, model_name)
-        await message.answer(reply, parse_mode="Markdown")
+        await message.answer(reply, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
     @dp.message()
     async def msg_handler(message: types.Message) -> None:
@@ -255,9 +337,9 @@ async def run_bot() -> None:
         reply = handle_user_message(session, message.text, films, client, model_name)
         # Fallback to plain text if markdown formatting encounters unescaped symbols
         try:
-            await message.answer(reply, parse_mode="Markdown")
+            await message.answer(reply, parse_mode="Markdown", reply_markup=get_main_keyboard())
         except Exception:
-            await message.answer(reply)
+            await message.answer(reply, reply_markup=get_main_keyboard())
 
     print(f"🚀 Киноманьяк Бот запущен! Каталог: {len(films)} фильмов, модель: {model_name}")
     await dp.start_polling(bot)

@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock
 import pytest
 
-from bot import ChatSession, handle_user_message, is_more_command, parse_exclusion
+from bot import ChatSession, get_main_keyboard, handle_user_message, is_ambiguous_query, is_more_command, parse_exclusion
 
 
 @pytest.fixture
@@ -47,10 +47,34 @@ def test_is_more_command():
     """Verify recognition of various 'more' / 'еще' commands."""
     assert is_more_command("еще")
     assert is_more_command("Ещё")
+    assert is_more_command("🔄 Ещё")
+    assert is_more_command("покажи еще")
     assert is_more_command("ещё фильмы")
     assert is_more_command("more")
     assert is_more_command("/more")
     assert not is_more_command("фильм про космос")
+
+
+def test_is_ambiguous_query():
+    """Verify detection of generic and ambiguous queries."""
+    assert is_ambiguous_query("что посмотреть")
+    assert is_ambiguous_query("посоветуй фильм")
+    assert is_ambiguous_query("кино на вечер")
+    assert is_ambiguous_query("фильм")
+    assert is_ambiguous_query("кино")
+    assert is_ambiguous_query("что-нибудь интересное")
+    assert not is_ambiguous_query("корейский детективный триллер")
+    assert not is_ambiguous_query("фильм про космос и черную дыру")
+
+
+def test_main_keyboard():
+    """Verify main reply keyboard configuration."""
+    kb = get_main_keyboard()
+    assert kb.resize_keyboard is True
+    button_texts = [btn.text for row in kb.keyboard for btn in row]
+    assert "🔄 Ещё" in button_texts
+    assert "❓ Что посмотреть?" in button_texts
+    assert "🔄 Сброс (/reset)" in button_texts
 
 
 def test_parse_exclusion(catalog):
