@@ -195,7 +195,6 @@ def format_recommendations(films: list[dict], film_ids: list[Any]) -> str:
             lines.append(f"  📖 {desc}")
         lines.append("")
 
-    lines.append("💡 _Напишите **«Ещё»**, чтобы получить другие варианты, или укажите новый запрос._")
     return "\n".join(lines).strip()
 
 

@@ -376,20 +376,50 @@ def pick(client: Any, model: str, query: str, films: list[dict]) -> tuple[str, l
     return "ok", final_ids
 
 
+COUNTRY_ADJECTIVES = {
+    "корей": ["республика корея", "корея"],
+    "япон": ["япония"],
+    "немец": ["германия"],
+    "герман": ["германия"],
+    "франц": ["франция"],
+    "италь": ["италия"],
+    "испан": ["испания"],
+    "росси": ["россия", "ссср"],
+    "русск": ["россия", "ссср"],
+    "совет": ["ссср", "россия"],
+    "америк": ["сша"],
+    "штат": ["сша"],
+    "британ": ["великобритания"],
+    "англи": ["великобритания"],
+    "китай": ["китай"],
+    "индий": ["индия"],
+    "инди": ["индия"],
+    "швед": ["швеция"],
+    "канад": ["канада"],
+    "австрал": ["австралия"],
+    "казах": ["казахстан"],
+}
+
+
 def candidates(query: str, films: list[dict], k: int = 30) -> list:
     """Fast algorithmic retrieval of candidate film IDs without using LLM.
 
     Executes in under 20s over 1000+ films (E02 requirement).
     """
     raw_words = [w.lower() for w in re.findall(r"[\wәғқңөұүһі]+", query) if len(w) > 2]
-    # Build prefixes/stems (e.g. "роботы" -> "робот")
     words = []
+    country_targets: set[str] = set()
+
     for w in raw_words:
         words.append(w)
-        if len(w) >= 5:
-            words.append(w[:len(w) - 1])
-            words.append(w[:len(w) - 2])
-        elif len(w) == 4:
+        for l in range(len(w) - 1, 3, -1):
+            stem = w[:l]
+            words.append(stem)
+            for adj_prefix, c_names in COUNTRY_ADJECTIVES.items():
+                if stem.startswith(adj_prefix) or adj_prefix.startswith(stem):
+                    for cn in c_names:
+                        country_targets.add(cn)
+        if len(w) == 4:
             words.append(w[:3])
 
     scored: list[tuple[float, Any]] = []
@@ -405,12 +435,19 @@ def candidates(query: str, films: list[dict], k: int = 30) -> list:
             str(film.get("year", "")),
         ]).lower()
 
+        film_countries = [c.lower() for c in (film.get("countries") or [])]
+        for ct in country_targets:
+            if any(ct in fc for fc in film_countries):
+                score += 15.0
+
         for w in words:
             if w in text:
                 score += 1.0
                 if w in str(film.get("title", "")).lower():
                     score += 3.0
                 if any(w in str(g).lower() for g in (film.get("genres") or [])):
+                    score += 2.0
+                if any(w in str(c).lower() for c in (film.get("countries") or [])):
                     score += 2.0
 
         scored.append((score, film["id"]))
