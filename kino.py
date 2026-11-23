@@ -131,6 +131,32 @@ def apply_filters(films: list[dict], filters: Filters) -> list[dict]:
     return result
 
 
+INJECTION_PATTERNS = [
+    r"игнорируй\s+(?:каталог|инструкци|правил)",
+    r"забудь\s+(?:про\s+фильм|все\s+инструкци|предыдущ|правил)",
+    r"ignore\s+(?:all\s+)?(?:previous\s+)?(?:instructions|rules|catalog)",
+    r"system\s*prompt",
+    r"ты\s+теперь\s+",
+    r"you\s+are\s+now\s+",
+    r"\bDAN\b",
+    r"jailbreak",
+    r"напиши\s+(?:программный\s+)?(?:код|скрипт)",
+    r"write\s+(?:a\s+)?(?:python|bash|js|code|script)",
+    r"\bimport\s+(?:os|sys|subprocess|shutil)\b",
+    r"\bdef\s+\w+\s*\(",
+    r"напиши\s+рецепт",
+    r"сочини\s+(?:стих|песн)",
+    r"нарисуй\s+(?:ascii|арт|картинк)",
+    r"переведи\s+текст",
+]
+
+
+def is_prompt_injection(query: str) -> bool:
+    """Detect prompt injection, role hijacking, code requests, or off-topic abuse."""
+    q = query.strip()
+    return any(re.search(pat, q, re.IGNORECASE) for pat in INJECTION_PATTERNS)
+
+
 def matches_filters(film: dict, filters: Filters) -> bool:
     """Check if an individual film satisfies the extracted filters."""
     return bool(apply_filters([film], filters))
@@ -146,6 +172,12 @@ def pick(client: Any, model: str, query: str, films: list[dict]) -> tuple[str, l
     """
     by_id = {str(f.get("id")): f for f in films}
     known_ids = set(by_id.keys())
+
+    # Step 0: Deterministic prompt injection and jailbreak interception
+    if is_prompt_injection(query):
+        choice_request = f"{query} [catalog size: {len(films)}]"
+        log_call(model=model, request_data=choice_request, outcome="no_match", step="choice")
+        return "no_match", []
 
     # Step 1: Extract structured filters (Rare R02 requirement)
     filters_step = Filters()
