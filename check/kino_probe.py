@@ -26,7 +26,7 @@ import time
 import traceback
 from pathlib import Path
 
-REPO = Path(sys.argv[1]).resolve()
+REPO = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
 CONFIG = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
 os.chdir(REPO)
 sys.path.insert(0, str(REPO))

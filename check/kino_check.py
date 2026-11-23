@@ -491,7 +491,7 @@ def print_report(rep, levels, live):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("repo", type=Path)
+    parser.add_argument("repo", nargs="?", default=Path("."), type=Path)
     parser.add_argument("--live", action="store_true",
                         help="пять запросов к локальной модели через Ollama")
     parser.add_argument("--live-model", default="qwen3.5:4b")
