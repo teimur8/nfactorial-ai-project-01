@@ -38,3 +38,12 @@ The Kinomaniac system recommends movies from a strictly verified local catalog i
 
 ### 2.5 Optional Feature Requirements (Where <feature>, the system shall...)
 - **OF-01 (Clarification):** Where a user query is ambiguous, the system may return `status="clarify"`, `picks=[]`, and prompt the user for additional details.
+
+---
+
+### 2.6 Telegram Bot Interaction Requirements (Legendary Tier)
+- **BOT-01 (Clarification Dialog):** When a user submits an ambiguous request, the Telegram bot shall output a single clarifying question without displaying movie recommendations.
+- **BOT-02 (More Command Without Duplicates):** When a user sends the command "Ещё" (or "еще", "more"), the Telegram bot shall recommend additional suitable movies for the last query while strictly excluding all previously recommended movie IDs (`seen_ids`).
+- **BOT-03 (Persistent Exclusions):** When a user specifies previously watched or excluded movies (e.g. "уже смотрел Брат"), the Telegram bot shall exclude the corresponding movie IDs from all subsequent recommendations within the active chat session.
+- **BOT-04 (Local LLM Execution):** Where configured to run at $0 cost, the Telegram bot shall connect to the local `qwen3.5:4b` model via Ollama.
+
