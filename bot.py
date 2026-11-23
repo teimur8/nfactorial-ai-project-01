@@ -12,6 +12,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import random
 import re
 from typing import Any
 
@@ -230,6 +231,20 @@ def handle_user_message(
     if matched_films and exclusion_msg:
         session.add_seen([f.get("id") for f in matched_films])
         return exclusion_msg
+
+    # Fast random pick for 'Что посмотреть?' or random queries
+    norm_cmd = re.sub(r"[^\w\s]", "", stripped.lower()).strip()
+    is_random_request = norm_cmd in {"что посмотреть", "рандом", "случайный фильм", "случайные фильмы", "что глянуть"}
+    if is_random_request or (is_more_command(stripped) and session.last_query == "что посмотреть"):
+        available_films = [f for f in films if not session.is_seen(f.get("id"))]
+        if not available_films:
+            return "В каталоге больше не осталось непросмотренных фильмов."
+        sample_k = min(3, len(available_films))
+        random_films = random.sample(available_films, sample_k)
+        ids = [f.get("id") for f in random_films]
+        session.add_seen(ids)
+        session.last_query = "что посмотреть"
+        return format_recommendations(films, ids)
 
     # Check for ambiguous/generic queries (BOT-01)
     if is_ambiguous_query(stripped):
