@@ -1,0 +1,116 @@
+{
+  "updated_at": "2026-11-23",
+  "currency": "USD",
+  "models": {
+    "gpt-4o-mini": {
+      "provider": "openai",
+      "base_url": "https://api.openai.com/v1",
+      "description": "Основная легковесная модель OpenAI для структурированных ответов",
+      "input_per_1m": 0.15,
+      "output_per_1m": 0.60,
+      "input_per_1k": 0.00015,
+      "output_per_1k": 0.00060,
+      "context_window": 128000,
+      "supports_structured_outputs": true
+    },
+    "gpt-4o": {
+      "provider": "openai",
+      "base_url": "https://api.openai.com/v1",
+      "description": "Флагманская мультимодальная модель OpenAI высокой точности",
+      "input_per_1m": 2.50,
+      "output_per_1m": 10.00,
+      "input_per_1k": 0.0025,
+      "output_per_1k": 0.0100,
+      "context_window": 128000,
+      "supports_structured_outputs": true
+    },
+    "gpt-4.1-mini": {
+      "provider": "openai",
+      "base_url": "https://api.openai.com/v1",
+      "description": "Быстрая модель следующего поколения с миллионным контекстом",
+      "input_per_1m": 0.40,
+      "output_per_1m": 1.60,
+      "input_per_1k": 0.0004,
+      "output_per_1k": 0.0016,
+      "context_window": 1000000,
+      "supports_structured_outputs": true
+    },
+    "gpt-4.1": {
+      "provider": "openai",
+      "base_url": "https://api.openai.com/v1",
+      "description": "Флагман следующего поколения",
+      "input_per_1m": 2.00,
+      "output_per_1m": 8.00,
+      "input_per_1k": 0.0020,
+      "output_per_1k": 0.0080,
+      "context_window": 1000000,
+      "supports_structured_outputs": true
+    },
+    "o3-mini": {
+      "provider": "openai",
+      "base_url": "https://api.openai.com/v1",
+      "description": "Высокоскоростная модель рассуждений (reasoning)",
+      "input_per_1m": 1.10,
+      "output_per_1m": 4.40,
+      "input_per_1k": 0.0011,
+      "output_per_1k": 0.0044,
+      "context_window": 200000,
+      "supports_structured_outputs": true
+    },
+    "o1": {
+      "provider": "openai",
+      "base_url": "https://api.openai.com/v1",
+      "description": "Мощная модель глубоких рассуждений для сложных задач",
+      "input_per_1m": 15.00,
+      "output_per_1m": 60.00,
+      "input_per_1k": 0.0150,
+      "output_per_1k": 0.0600,
+      "context_window": 200000,
+      "supports_structured_outputs": true
+    },
+    "gpt-6-luna": {
+      "provider": "course_proxy",
+      "base_url": "прокси курса (Лекция 3 «Шеф-повар»)",
+      "description": "Учебная быстрая прокси-модель курса",
+      "input_per_1m": 0.10,
+      "output_per_1m": 0.50,
+      "input_per_1k": 0.00010,
+      "output_per_1k": 0.00050,
+      "context_window": 128000,
+      "supports_structured_outputs": true
+    },
+    "gpt-6-astra": {
+      "provider": "course_proxy",
+      "base_url": "прокси курса (Лекция 3 «Шеф-повар»)",
+      "description": "Учебная флагманская прокси-модель курса",
+      "input_per_1m": 10.00,
+      "output_per_1m": 50.00,
+      "input_per_1k": 0.0100,
+      "output_per_1k": 0.0500,
+      "context_window": 128000,
+      "supports_structured_outputs": true
+    },
+    "luna-think": {
+      "provider": "course_proxy",
+      "base_url": "прокси курса (Лекция 4 «Model Scout»)",
+      "description": "Учебная модель с пошаговыми рассуждениями",
+      "input_per_1m": 0.10,
+      "output_per_1m": 0.50,
+      "input_per_1k": 0.00010,
+      "output_per_1k": 0.00050,
+      "context_window": 128000,
+      "supports_structured_outputs": true
+    },
+    "qwen3.5:4b": {
+      "provider": "ollama",
+      "base_url": "http://localhost:11434/v1",
+      "description": "Локальная открытая модель Qwen (запуск без API-ключа)",
+      "input_per_1m": 0.00,
+      "output_per_1m": 0.00,
+      "input_per_1k": 0.00,
+      "output_per_1k": 0.00,
+      "context_window": 32768,
+      "supports_structured_outputs": true
+    }
+  }
+}
