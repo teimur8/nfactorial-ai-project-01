@@ -244,3 +244,85 @@ def test_prompt_injection_guardrail(dummy_films):
         assert outcome == "no_match"
         assert ids == []
 
+
+def test_canonical_user_queries_and_responses():
+    """Verify that recommender generates valid, grounded responses for canonical phrases."""
+    catalog = [
+        {
+            "id": 9,
+            "title": "Интерстеллар",
+            "year": 2014,
+            "minutes": 169,
+            "genres": ["фантастика", "драма"],
+            "countries": ["США"],
+            "languages": ["английский"],
+            "description": "Полет сквозь червоточину в поисках нового дома в космосе.",
+        },
+        {
+            "id": 10,
+            "title": "Начало",
+            "year": 2010,
+            "minutes": 148,
+            "genres": ["фантастика", "боевик", "триллер"],
+            "countries": ["США", "Великобритания"],
+            "languages": ["английский"],
+            "description": "Кобб похищает секреты из подсознания во время сна.",
+        },
+        {
+            "id": 3,
+            "title": "Тюльпан",
+            "year": 2008,
+            "minutes": 100,
+            "genres": ["драма", "комедия"],
+            "countries": ["Казахстан"],
+            "languages": ["казахский", "русский"],
+            "description": "Моряк Аса возвращается в казахскую степь к семье.",
+        },
+        {
+            "id": 1,
+            "title": "Игла",
+            "year": 1988,
+            "minutes": 81,
+            "genres": ["драма", "криминал"],
+            "countries": ["Казахстан"],
+            "languages": ["русский"],
+            "description": "Моро возвращается в Алма-Ату к любимой девушке.",
+        },
+    ]
+
+    # Phrase 1: "Посоветуй фильм как Интерстеллар, но не про космос"
+    selection_1 = MovieSelection(
+        status="ok",
+        reason="Научная фантастика Нолана со сложным сюжетом, но не о космосе",
+        picks=[PickItem(film_id=10, why="Научно-фантастический шедевр об осознанных сновидениях")],
+    )
+    client_1 = build_fake_client(selection_parsed=selection_1)
+    outcome_1, ids_1 = pick(client_1, "test-model", "Посоветуй фильм как Интерстеллар, но не про космос", catalog)
+    assert outcome_1 == "ok"
+    assert ids_1 == [10]
+    assert 9 not in ids_1
+
+    # Phrase 2: "Что посмотреть с мамой на казахском, до двух часов?"
+    filters_2 = Filters(languages=["казахский"], max_minutes=120)
+    selection_2 = MovieSelection(
+        status="ok",
+        reason="Добрая семейная история на казахском языке длительностью до 2 часов",
+        picks=[PickItem(film_id=3, why="Теплая степная комедия-притча о мечтах")],
+    )
+    client_2 = build_fake_client(filters_parsed=filters_2, selection_parsed=selection_2)
+    outcome_2, ids_2 = pick(client_2, "test-model", "Что посмотреть с мамой на казахском, до двух часов?", catalog)
+    assert outcome_2 == "ok"
+    assert ids_2 == [3]
+
+    # Phrase 3: "доброе кино про Алматы, только не мелодрама"
+    filters_3 = Filters(exclude_genres=["мелодрама"])
+    selection_3 = MovieSelection(
+        status="ok",
+        reason="Атмосферное кино об Алма-Ате без мелодраматического сюжета",
+        picks=[PickItem(film_id=1, why="Культовая классика с Виктором Цоем в Алма-Ате")],
+    )
+    client_3 = build_fake_client(filters_parsed=filters_3, selection_parsed=selection_3)
+    outcome_3, ids_3 = pick(client_3, "test-model", "доброе кино про Алматы, только не мелодрама", catalog)
+    assert outcome_3 == "ok"
+    assert ids_3 == [1]
+

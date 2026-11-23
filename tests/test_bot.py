@@ -166,3 +166,130 @@ def test_bot_user_exclusion_persists(catalog, monkeypatch):
     monkeypatch.setattr("bot.pick_big", mock_pick)
     resp_rec = handle_user_message(session, "посоветуй криминал", catalog, fake_client, "gpt-4o-mini")
     assert "Брат 2" in resp_rec
+
+
+def test_bot_query_interstellar_not_space(monkeypatch):
+    """Test phrase: 'Посоветуй фильм как Интерстеллар, но не про космос'."""
+    session = ChatSession()
+    fake_client = MagicMock()
+    test_catalog = [
+        {
+            "id": 9,
+            "title": "Интерстеллар",
+            "year": 2014,
+            "minutes": 169,
+            "genres": ["фантастика", "драма"],
+            "countries": ["США"],
+            "languages": ["английский"],
+            "description": "Полет сквозь червоточину в поисках нового дома в космосе.",
+        },
+        {
+            "id": 10,
+            "title": "Начало",
+            "year": 2010,
+            "minutes": 148,
+            "genres": ["фантастика", "боевик", "триллер"],
+            "countries": ["США", "Великобритания"],
+            "languages": ["английский"],
+            "description": "Кобб похищает секреты из подсознания во время сна.",
+        },
+    ]
+
+    def mock_pick(client, model, query, films):
+        # Must recommend Inception (id 10), forbidding Interstellar (id 9)
+        return "ok", [10]
+
+    monkeypatch.setattr("bot.pick_big", mock_pick)
+    query = "Посоветуй фильм как Интерстеллар, но не про космос"
+    response = handle_user_message(session, query, test_catalog, fake_client, "gpt-4o-mini")
+
+    assert "Начало" in response
+    assert "2010" in response
+    assert "148 мин" in response
+    assert "фантастика" in response
+    assert session.is_seen(10)
+    assert not session.is_seen(9)
+
+
+def test_bot_query_kazakh_under_two_hours(monkeypatch):
+    """Test phrase: 'Что посмотреть с мамой на казахском, до двух часов?'."""
+    session = ChatSession()
+    fake_client = MagicMock()
+    test_catalog = [
+        {
+            "id": 3,
+            "title": "Тюльпан",
+            "year": 2008,
+            "minutes": 100,
+            "genres": ["драма", "комедия"],
+            "countries": ["Казахстан"],
+            "languages": ["казахский", "русский"],
+            "description": "Моряк Аса возвращается в казахскую степь к семье.",
+        },
+        {
+            "id": 7,
+            "title": "Томирис",
+            "year": 2019,
+            "minutes": 156,
+            "genres": ["история", "военный", "драма"],
+            "countries": ["Казахстан"],
+            "languages": ["казахский"],
+            "description": "История царицы массагетов Томирис.",
+        },
+    ]
+
+    def mock_pick(client, model, query, films):
+        return "ok", [3]
+
+    monkeypatch.setattr("bot.pick_big", mock_pick)
+    query = "Что посмотреть с мамой на казахском, до двух часов?"
+    response = handle_user_message(session, query, test_catalog, fake_client, "gpt-4o-mini")
+
+    assert "Тюльпан" in response
+    assert "100 мин" in response
+    assert "2008" in response
+    assert "Томирис" not in response
+    assert session.is_seen(3)
+    assert not session.is_seen(7)
+
+
+def test_bot_query_almaty_not_melodrama(monkeypatch):
+    """Test phrase: 'доброе кино про Алматы, только не мелодрама'."""
+    session = ChatSession()
+    fake_client = MagicMock()
+    test_catalog = [
+        {
+            "id": 1,
+            "title": "Игла",
+            "year": 1988,
+            "minutes": 81,
+            "genres": ["драма", "криминал"],
+            "countries": ["Казахстан"],
+            "languages": ["русский"],
+            "description": "Моро возвращается в Алма-Ату к любимой девушке.",
+        },
+        {
+            "id": 99,
+            "title": "Слезная мелодрама",
+            "year": 2015,
+            "minutes": 95,
+            "genres": ["мелодрама"],
+            "countries": ["Казахстан"],
+            "languages": ["русский"],
+            "description": "Романтическая история в Алматы.",
+        },
+    ]
+
+    def mock_pick(client, model, query, films):
+        return "ok", [1]
+
+    monkeypatch.setattr("bot.pick_big", mock_pick)
+    query = "доброе кино про Алматы, только не мелодрама"
+    response = handle_user_message(session, query, test_catalog, fake_client, "gpt-4o-mini")
+
+    assert "Игла" in response
+    assert "81 мин" in response
+    assert "1988" in response
+    assert "Слезная мелодрама" not in response
+    assert session.is_seen(1)
+    assert not session.is_seen(99)
