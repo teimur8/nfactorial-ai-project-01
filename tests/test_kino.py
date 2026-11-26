@@ -326,3 +326,82 @@ def test_canonical_user_queries_and_responses():
     assert outcome_3 == "ok"
     assert ids_3 == [1]
 
+
+def test_duration_filter_one_and_half_hours():
+    """Verify that duration limits ('до полутора часов' -> 90 min) strictly filter out longer films.
+
+    Why: Regression test for mentor review defect where 'Шал' (102 min) and 'Районы' (110 min)
+    were mistakenly recommended despite user asking for <= 90 min films.
+    """
+    catalog = [
+        {
+            "id": 101,
+            "title": "Рэкетир",
+            "year": 2007,
+            "minutes": 80,
+            "genres": ["криминал", "драма"],
+            "countries": ["Казахстан"],
+            "languages": ["русский"],
+            "description": "История жизни молодого парня Саяна в 90-е годы.",
+        },
+        {
+            "id": 102,
+            "title": "Бизнес по-казахски",
+            "year": 2016,
+            "minutes": 90,
+            "genres": ["комедия"],
+            "countries": ["Казахстан"],
+            "languages": ["казахский", "русский"],
+            "description": "Жомарт пытается спасти семейный отель с помощью родственников.",
+        },
+        {
+            "id": 103,
+            "title": "Шал",
+            "year": 2012,
+            "minutes": 102,
+            "genres": ["драма"],
+            "countries": ["Казахстан"],
+            "languages": ["казахский", "русский"],
+            "description": "Старик Касым заблудился в бескрайней степи вместе с отарой овец.",
+        },
+        {
+            "id": 104,
+            "title": "Районы",
+            "year": 2016,
+            "minutes": 110,
+            "genres": ["драма", "криминал"],
+            "countries": ["Казахстан"],
+            "languages": ["русский"],
+            "description": "Алма-Ата, 1987 год. Старшеклассник Арсен попадает в уличную группировку.",
+        },
+    ]
+
+    # Even if LLM filter step returned empty filters, deterministic fallback ensures <= 90 min
+    selection = MovieSelection(
+        status="ok",
+        reason="Динамичная криминальная драма до полутора часов",
+        picks=[PickItem(film_id=101, why="Хронометраж 80 минут, укладывается в полтора часа")],
+    )
+    client = build_fake_client(filters_parsed=Filters(), selection_parsed=selection)
+    outcome, ids = pick(client, "test-model", "Что-нибудь до полутора часов, криминальная драма", catalog)
+
+    assert outcome == "ok"
+    assert ids == [101]
+    assert 103 not in ids
+    assert 104 not in ids
+
+    # If the LLM tries to recommend films over 90 min (103 or 104), post-filter guardrail blocks them
+    bad_selection = MovieSelection(
+        status="ok",
+        reason="Драма",
+        picks=[
+            PickItem(film_id=103, why="Фильм Шал"),
+            PickItem(film_id=104, why="Фильм Районы"),
+        ],
+    )
+    client_bad = build_fake_client(filters_parsed=Filters(), selection_parsed=bad_selection)
+    outcome_bad, ids_bad = pick(client_bad, "test-model", "фильм до полутора часов", catalog)
+    assert outcome_bad == "no_match"
+    assert ids_bad == []
+
+
