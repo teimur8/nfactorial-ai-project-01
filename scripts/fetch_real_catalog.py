@@ -11,8 +11,11 @@ populating films_big.json with 1050 verified, real-world films (E01 requirement)
 import csv
 import io
 import json
+import time
+import urllib.parse
 import urllib.request
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -117,6 +120,75 @@ def parse_json_field(raw: str, key: str = "name") -> list[str]:
     return []
 
 
+def translate_single(text: str) -> str:
+    """Translate single string text from English to Russian."""
+    if not text.strip():
+        return ""
+    data = urllib.parse.urlencode({
+        "client": "gtx",
+        "sl": "en",
+        "tl": "ru",
+        "dt": "t",
+        "q": text,
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        "https://translate.googleapis.com/translate_a/single",
+        data=data,
+        headers={"User-Agent": "Mozilla/5.0"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            raw = json.loads(r.read().decode("utf-8"))
+            return "".join(x[0] for x in raw[0] if x[0]).strip()
+    except Exception:
+        return text
+
+
+def translate_batch(batch: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """Translate batch of (title, description) from English to Russian with retry."""
+    if not batch:
+        return []
+
+    payload = "\n~~~~\n".join(f"{t}\n===\n{d}" for t, d in batch)
+    data = urllib.parse.urlencode({
+        "client": "gtx",
+        "sl": "en",
+        "tl": "ru",
+        "dt": "t",
+        "q": payload,
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        "https://translate.googleapis.com/translate_a/single",
+        data=data,
+        headers={"User-Agent": "Mozilla/5.0"},
+    )
+
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=20) as r:
+                raw = json.loads(r.read().decode("utf-8"))
+                res = "".join(x[0] for x in raw[0] if x[0])
+            items = res.split("~~~~")
+            if len(items) == len(batch):
+                results: list[tuple[str, str]] = []
+                for (orig_t, orig_d), it in zip(batch, items):
+                    parts = it.strip().split("===")
+                    tr_t = parts[0].strip() if len(parts) > 0 and parts[0].strip() else orig_t
+                    tr_d = parts[1].strip() if len(parts) > 1 and parts[1].strip() else orig_d
+                    results.append((tr_t, tr_d))
+                return results
+        except Exception:
+            time.sleep(1.0 + attempt * 0.5)
+
+    fallback_results: list[tuple[str, str]] = []
+    for t, d in batch:
+        tr_t = translate_single(t)
+        tr_d = translate_single(d)
+        fallback_results.append((tr_t or t, tr_d or d))
+    return fallback_results
+
+
 def build_real_catalog(output_path: Path = Path("films_big.json")) -> list[dict]:
     """Download TMDb dataset and construct normalized films_big.json catalog."""
     print("1. Loading base catalog from films.json...")
@@ -151,9 +223,10 @@ def build_real_catalog(output_path: Path = Path("films_big.json")) -> list[dict]
     base_titles = {f["title"].lower() for f in base_films}
     next_id = 51
 
-    print("3. Processing and translating TMDb records into catalog format...")
+    print("3. Processing TMDb records into catalog format...")
+    raw_tmdb_candidates: list[dict] = []
     for row in rows:
-        if len(result_films) >= 1050:
+        if len(result_films) + len(raw_tmdb_candidates) >= 1050:
             break
 
         title = (row.get("title") or "").strip()
@@ -206,9 +279,34 @@ def build_real_catalog(output_path: Path = Path("films_big.json")) -> list[dict]
             "source": source_url,
         }
 
-        result_films.append(movie_record)
+        raw_tmdb_candidates.append(movie_record)
         base_titles.add(title.lower())
         next_id += 1
+
+    print(f"3.1. Translating {len(raw_tmdb_candidates)} titles and descriptions to Russian...")
+    batch_size = 5
+    batches = [
+        [(c["title"], c["description"]) for c in raw_tmdb_candidates[i : i + batch_size]]
+        for i in range(0, len(raw_tmdb_candidates), batch_size)
+    ]
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        future_to_idx = {pool.submit(translate_batch, b): idx for idx, b in enumerate(batches)}
+        results_by_idx: dict[int, list[tuple[str, str]]] = {}
+        for future in as_completed(future_to_idx):
+            idx = future_to_idx[future]
+            results_by_idx[idx] = future.result()
+            if len(results_by_idx) % 30 == 0 or len(results_by_idx) == len(batches):
+                print(f"     Translated {len(results_by_idx)} / {len(batches)} batches...")
+
+    translated_pairs: list[tuple[str, str]] = []
+    for idx in range(len(batches)):
+        translated_pairs.extend(results_by_idx[idx])
+
+    for candidate, (tr_title, tr_desc) in zip(raw_tmdb_candidates, translated_pairs):
+        candidate["title"] = tr_title
+        candidate["description"] = tr_desc
+        result_films.append(candidate)
 
     print(f"4. Validating {len(result_films)} catalog records...")
     # Validation checks
