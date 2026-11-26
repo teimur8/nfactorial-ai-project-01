@@ -6,7 +6,14 @@ import httpx2 as httpx
 import openai
 import pytest
 
+import kino
 from kino import Filters, MovieSelection, PickItem, candidates, pick, pick_big
+
+
+@pytest.fixture(autouse=True)
+def isolate_test_journal(tmp_path, monkeypatch):
+    """Isolate calls.jsonl during unit tests so test-model calls do not pollute benchmark logs."""
+    monkeypatch.setattr(kino, "JOURNAL_PATH", tmp_path / "test_calls.jsonl")
 
 
 @pytest.fixture
