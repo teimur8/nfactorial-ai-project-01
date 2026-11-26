@@ -411,4 +411,25 @@ def test_duration_filter_one_and_half_hours():
     assert outcome_bad == "no_match"
     assert ids_bad == []
 
+    # Verify 'не больше' phrasing works identically
+    outcome_nb, ids_nb = pick(client, "test-model", "фильм не больше 90 минут, криминальная драма", catalog)
+    assert outcome_nb == "ok"
+    assert ids_nb == [101]
+
+
+def test_filters_convert_duration():
+    """Verify conversion of colloquial and numeric duration values."""
+    f1 = Filters(max_minutes="1.5")
+    assert f1.max_minutes == 90
+
+    f2 = Filters(max_minutes=2.0)
+    assert f2.max_minutes == 120
+
+    f3 = Filters(max_minutes=5)
+    assert f3.max_minutes == 5
+
+    f4 = Filters(max_minutes=85)
+    assert f4.max_minutes == 85
+
+
 

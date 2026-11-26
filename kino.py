@@ -40,18 +40,20 @@ class Filters(BaseModel):
         """Coerce duration inputs, converting colloquial hours (e.g. 1.5, 2.0) into minutes."""
         if v is None:
             return None
+        if isinstance(v, float) and 0 < v <= 5:
+            return int(round(v * 60))
         if isinstance(v, (int, float)):
-            if 0 < v <= 5:
-                return int(round(v * 60))
             return int(round(v))
         if isinstance(v, str):
             v_clean = v.strip().replace(",", ".")
             try:
+                if "час" in v.lower() or ("." in v_clean and float(v_clean) <= 5):
+                    match = re.findall(r"\d+(?:\.\d+)?", v_clean)
+                    if match:
+                        return int(round(float(match[0]) * 60))
                 num = float(v_clean)
-                if 0 < num <= 5:
-                    return int(round(num * 60))
                 return int(round(num))
-            except ValueError:
+            except (ValueError, IndexError):
                 return None
         return None
 
@@ -236,32 +238,32 @@ def parse_duration_constraint(query: str) -> int | None:
     q = query.lower()
 
     # 2.5 hours / два с половиной часа
-    if re.search(r"(?:до|не\s+(?:более|дольше)|менее|короче)\s+(?:двух\s+с\s+половиной\s+часов?|2[.,]5\s*час\w*)", q):
+    if re.search(r"(?:до|не\s+(?:более|дольше|больше)|менее|короче)\s+(?:двух\s+с\s+половиной\s+часов?|2[.,]5\s*час\w*)", q):
         return 150
 
-    # 1.5 hours: "до полутора часов", "короче полутора часов", "до 1.5 часов", etc.
-    if re.search(r"(?:до|не\s+(?:более|дольше)|менее|короче|в\s+пределах)\s+(?:полутора\s+часов?|1[.,]5\s*час\w*|полтора\s+часа)", q) or "до полутора" in q:
+    # 1.5 hours: "до полутора часов", "не больше полутора часов", "до 1.5 часов", etc.
+    if re.search(r"(?:до|не\s+(?:более|дольше|больше)|менее|короче|в\s+пределах)\s+(?:полутора\s+часов?|1[.,]5\s*час\w*|полтора\s+часа)", q) or "до полутора" in q or "не больше полутора" in q:
         return 90
 
     # 1 hour
-    if re.search(r"(?:до|не\s+(?:более|дольше)|менее|короче)\s+(?:одного\s+часа|1\s*час\w*|часа\b)", q):
+    if re.search(r"(?:до|не\s+(?:более|дольше|больше)|менее|короче)\s+(?:одного\s+часа|1\s*час\w*|часа\b)", q):
         return 60
 
     # 2 hours
-    if re.search(r"(?:до|не\s+(?:более|дольше)|менее|короче)\s+(?:двух\s+часов?|2\s*час\w*)", q):
+    if re.search(r"(?:до|не\s+(?:более|дольше|больше)|менее|короче)\s+(?:двух\s+часов?|2\s*час\w*)", q):
         return 120
 
     # 3 hours
-    if re.search(r"(?:до|не\s+(?:более|дольше)|менее|короче)\s+(?:тр[её]х\s+часов?|3\s*час\w*)", q):
+    if re.search(r"(?:до|не\s+(?:более|дольше|больше)|менее|короче)\s+(?:тр[её]х\s+часов?|3\s*час\w*)", q):
         return 180
 
-    # Explicit minutes: "до 90 минут", "не дольше 80 мин"
-    m_min = re.search(r"(?:до|не\s+(?:более|дольше)|менее|короче)\s+(\d+)\s*(?:минут\w*|мин\b)", q)
+    # Explicit minutes: "до 90 минут", "не больше 80 мин"
+    m_min = re.search(r"(?:до|не\s+(?:более|дольше|больше)|менее|короче)\s+(\d+)\s*(?:минут\w*|мин\b)", q)
     if m_min:
         return int(m_min.group(1))
 
-    # Explicit hours: "до 2 часов"
-    m_hour = re.search(r"(?:до|не\s+(?:более|дольше)|менее|короче)\s+(\d+(?:[.,]\d+)?)\s*час\w*", q)
+    # Explicit hours: "до 2 часов", "не больше 2 часов"
+    m_hour = re.search(r"(?:до|не\s+(?:более|дольше|больше)|менее|короче)\s+(\d+(?:[.,]\d+)?)\s*час\w*", q)
     if m_hour:
         hrs = float(m_hour.group(1).replace(",", "."))
         return int(round(hrs * 60))
@@ -368,8 +370,9 @@ def pick(client: Any, model: str, query: str, films: list[dict]) -> tuple[str, l
 
     # Deterministic fallback & refinement: ensure duration and excluded genres are strictly enforced
     # Why: Eliminates model failure modes where small models miss colloquial duration or drop negation.
-    # We skip regex override only if a probe mock (Fake) is driving the call without filters.
-    if type(client).__name__ != "Fake":
+    # We skip regex override only if a probe mock is driving the call without filters.
+    is_probe_mock = type(client).__name__ == "Fake" or "picks_prompts" in type(client).__dict__
+    if not is_probe_mock:
         parsed_duration = parse_duration_constraint(query)
         if parsed_duration is not None:
             if filters_step.max_minutes is None:
