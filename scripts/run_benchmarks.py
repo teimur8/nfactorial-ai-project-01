@@ -83,46 +83,8 @@ def run_benchmark() -> None:
                 fut.result()
         print(f"   Pass {run_idx}/3 completed.")
     print(f"Stage 2 finished in {time.time() - t_start_ollama:.1f}s.")
-    print("-" * 60)
-
-    # 3. Epic Tier E05: Baseline full-catalog prompt run
-    print("📚 Stage 3: Recording baseline full catalog prompt (E05 requirement)...")
-    whole_catalog_json = json.dumps(films_big, ensure_ascii=False)
-    whole_len = len(whole_catalog_json)
-    # Estimate tokens: 1 token ~ 3.5 chars for JSON
-    est_prompt_tokens = whole_len // 3
-    est_comp_tokens = 50
-    # Store request containing full catalog representation
-    full_req = f"baseline full catalog benchmark: {whole_catalog_json[:whole_len // 2 + 500]}"
-    class MockUsage:
-        prompt_tokens = est_prompt_tokens
-        completion_tokens = est_comp_tokens
-        total_tokens = est_prompt_tokens + est_comp_tokens
-
-    log_call(
-        model="gpt-4o",
-        request_data=full_req,
-        outcome="ok",
-        usage=MockUsage(),
-        step="choice",
-    )
-    print(f"   Recorded baseline catalog call: request {len(full_req)} chars, tokens {est_prompt_tokens}.")
-    print("-" * 60)
-
-    # 4. Guardrail tracking: 1 invalid alien ID call to ensure rejected ID is tracked
-    print("🛡️ Stage 4: Recording guardrail verification call with rejected foreign ID...")
-    alien_query = "посоветуй фильм по несуществующему идентификатору"
-    log_call(
-        model="gpt-4o-mini",
-        request_data=f"{alien_query} [catalog size: {len(films)}]",
-        outcome="invalid",
-        rejected=[99999],
-        usage=MockUsage(),
-        step="choice",
-    )
-    print("   Recorded guardrail rejected ID record.")
     print("=" * 60)
-    print("✅ All real benchmark stages successfully executed and saved to calls.jsonl!")
+    print("✅ Benchmark stages successfully executed and saved to calls.jsonl!")
 
 
 if __name__ == "__main__":

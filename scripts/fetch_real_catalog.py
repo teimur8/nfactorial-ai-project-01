@@ -1,7 +1,7 @@
 """Fetch and build real-world films_big.json catalog from TMDb 5000 open dataset.
 
 Dataset Source: The Movie Database (TMDb 5000 Movies Dataset)
-License: CC0 1.0 Universal (Public Domain Dedication)
+License: TMDb API Terms of Use (educational/non-commercial; listed as 'unknown' on Hugging Face dataset card)
 URL: https://huggingface.co/datasets/alejandrowallace/tmdb-5000
 
 Why: Eliminates synthetic placeholder entries ('Таинственный Горизонт 51') by

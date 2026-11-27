@@ -84,6 +84,8 @@ def calculate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> fl
     m = model.lower()
     if "4o-mini" in m or "luna" in m:
         return (prompt_tokens * 0.15 + completion_tokens * 0.60) / 1_000_000
+    if "4.1-mini" in m:
+        return (prompt_tokens * 0.40 + completion_tokens * 1.60) / 1_000_000
     if "4o" in m:
         return (prompt_tokens * 2.50 + completion_tokens * 10.00) / 1_000_000
     if "ollama" in m or "qwen" in m or "local" in m:
